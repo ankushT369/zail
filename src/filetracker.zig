@@ -1,19 +1,39 @@
 const std = @import("std");
 const ct = @import("constants.zig");
 
-pub const FilePos = struct {
+// pub const FilePos = struct {
+//     last_pos: u64,
+//     curr_pos: u64,
+//     file: std.fs.File,
+//
+//     pub fn init(path: [*:0]const u8) !FilePos {
+//         const file = try std.fs.cwd().openFile(std.mem.span(path), .{});
+//         const stat = try file.stat();
+//
+//         try file.seekTo(stat.size);
+//
+//         return FilePos{
+//             .last_pos = stat.size,
+//             .curr_pos = stat.size,
+//             .file_path = std.mem.span(path),
+//             .file = file,
+//         };
+//     }
+// };
+
+pub const FileTracker = struct {
     last_pos: u64,
     curr_pos: u64,
     file_path: []const u8,
     file: std.fs.File,
 
-    pub fn init(path: [*:0]const u8) !FilePos {
+    pub fn init(path: [*:0]const u8) !FileTracker {
         const file = try std.fs.cwd().openFile(std.mem.span(path), .{});
         const stat = try file.stat();
 
         try file.seekTo(stat.size);
 
-        return FilePos{
+        return FileTracker{
             .last_pos = stat.size,
             .curr_pos = stat.size,
             .file_path = std.mem.span(path),
@@ -21,29 +41,34 @@ pub const FilePos = struct {
         };
     }
 
-    pub fn deinit(self: *FilePos) void {
+    pub fn deinit(self: *FileTracker) void {
         self.file.close();
     }
 
-    pub fn getFileCurrPos(self: *FilePos) !u64 {
+    //pub fn createTracker() {
+        //self.registerFileEvent();
+    //}
+
+    //pub fn registerFileEvent() {
+
+    //}
+
+    // get file current position is an unility function which
+    // returns the size of the self.file_path
+    pub fn getFileCurrPos(self: *FileTracker) !u64 {
         const stat = try std.fs.cwd().statFile(self.file_path);
         return stat.size;
     }
 
-    pub fn getFileSize(self: *FilePos) !u64 {
-        const stat = try std.fs.cwd().statFile(self.file_path);
-        return stat.size;
-    }
-
-    pub fn getBytesWritten(self: *const FilePos) u64 {
+    pub fn getBytesWritten(self: *const FileTracker) u64 {
         return if (self.curr_pos > self.last_pos) self.curr_pos - self.last_pos else 0;
     }
 
-    pub fn updateFilePos(self: *FilePos) !void {
+    pub fn updateFileTracker(self: *FileTracker) !void {
         self.last_pos = self.curr_pos; 
     }
 
-    pub fn readNewContent(self: *FilePos, buffer: []u8) ![]const u8 {
+    pub fn readNewContent(self: *FileTracker, buffer: []u8) ![]const u8 {
         self.curr_pos = try self.getFileCurrPos();
         const bytes_to_read = self.getBytesWritten();
 
@@ -59,7 +84,7 @@ pub const FilePos = struct {
         
         //Read directly from the file
         const bytes_read = try self.file.read(buffer[0..read_size]);
-        try self.updateFilePos();
+        try self.updateFileTracker();
         return buffer[0..bytes_read];
     }
 
