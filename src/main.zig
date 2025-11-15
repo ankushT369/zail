@@ -17,7 +17,7 @@ pub fn main() !void {
     defer watch.deinit();
 
     // Later to be improved
-    var tracker = try fp.FileTracker.init(ct.file_path);
+    var tracker = try fp.FileTracker.init(allocator);
     defer tracker.deinit();
 
     // Epoll configuration
@@ -42,8 +42,17 @@ pub fn main() !void {
                 var ptr: usize = 0;
                 while(ptr < len) {
                     const event = @as(*const linux.inotify_event, @alignCast(@ptrCast(&wt.inotify_buffer[ptr])));
-                    if (event.mask & (linux.IN.MOVED_TO | linux.IN.DELETE | linux.IN.CREATE | linux.IN.MOVED_FROM | linux.IN.MODIFY | linux.IN.CLOSE_WRITE | linux.IN.MOVE_SELF | linux.IN.DELETE_SELF) != 0) {
-                        _ = try tracker.readNewContent(&ct.content_buffer);
+                    if (event.mask & (ct.MASK) != 0) {
+                        var buffer: [ct.MAX_PATH_LEN]u8 = undefined;
+                        const full_path = std.fmt.bufPrintZ(&buffer, "{?s}/{?s}", .{
+                            watch.getPath(event.wd),
+                            event.getName(),
+                        }) catch {
+                            return error.PathTooLong;
+                        };
+
+                        const fpos = try tracker.track(full_path);
+                        _ = try fpos.readNewContent(&ct.content_buffer);
                     }
                     
                     ptr += @sizeOf(linux.inotify_event) + event.len;
