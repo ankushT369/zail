@@ -1,4 +1,5 @@
 const std = @import("std");
+const ct = @import("constants.zig");
 const linux = std.os.linux;
 
 pub const inotify_buffer_size = 10 * (@sizeOf(linux.inotify_event) + 256 + 1);
@@ -22,7 +23,7 @@ pub const Watcher = struct {
             .allocator = allocator,
         };
 
-        ret = linux.inotify_add_watch(inotify_fd, @ptrCast(file_dir.ptr), linux.IN.MOVED_TO | linux.IN.DELETE | linux.IN.CREATE | linux.IN.MOVED_FROM);
+        ret = linux.inotify_add_watch(inotify_fd, @ptrCast(file_dir.ptr), ct.MASK); 
         const wd: i32 = @intCast(ret);
 
         if (wd >= 0) {
@@ -46,10 +47,8 @@ pub const Watcher = struct {
         while (iter.next() catch null) |entry| {
             if (entry.kind == .directory and !std.mem.eql(u8, entry.name, ".") and !std.mem.eql(u8, entry.name, "..")) {
                 const next_path = std.fmt.bufPrintZ(&buf, "{s}/{s}", .{path, entry.name}) catch continue;
-                std.debug.print("path: {s}\n", .{next_path});
 
-                const ret = linux.inotify_add_watch(self.inotify_fd, next_path, linux.IN.MOVED_TO | linux.IN.DELETE | linux.IN.CREATE | linux.IN.MOVED_FROM);
-
+                const ret = linux.inotify_add_watch(self.inotify_fd, next_path, ct.MASK);
                 if (ret >= std.math.maxInt(i32)) continue;
 
                 const wd: i32 = @intCast(ret);
@@ -61,22 +60,6 @@ pub const Watcher = struct {
                 }
 
                 try self.addWatchRecurrsive(next_path);
-            }
-            else if (entry.kind == .file) {
-                const next_path = std.fmt.bufPrintZ(&buf, "{s}/{s}", .{path, entry.name}) catch continue;
-                std.debug.print("path: {s}\n", .{next_path});
-
-                const ret = linux.inotify_add_watch(self.inotify_fd, next_path, linux.IN.MODIFY | linux.IN.CLOSE_WRITE | linux.IN.MOVE_SELF | linux.IN.DELETE_SELF);
-
-                if (ret >= std.math.maxInt(i32)) continue;
-
-                const wd: i32 = @intCast(ret);
-
-                if (wd >= 0) {
-                    const stored_path = try self.allocator.allocSentinel(u8, next_path.len, 0);
-                    std.mem.copyForwards(u8, stored_path, next_path);
-                    try self.watch_map.put(wd, stored_path);
-                }
             }
         }
     }
