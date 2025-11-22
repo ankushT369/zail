@@ -1,5 +1,10 @@
 const std = @import("std");
 const ct = @import("constants.zig");
+const tp = @import("types.zig");
+
+const INODE = tp.INODE;
+const DEV = tp.DEV;
+const UID = tp.UID;
 
 const c = @cImport({
     @cInclude("sys/stat.h");
@@ -10,12 +15,12 @@ const c = @cImport({
 /// file path.
 pub const FilePos = struct {
     // file inode
-    inode: u64,
+    inode: INODE,
     // device ID
-    dev_id: u64,
+    dev_id: DEV,
     // last known size
     last_pos: u64,
-    //
+    // current size
     curr_pos: u64,
     file: std.fs.File,
     file_path: []const u8,
@@ -35,18 +40,15 @@ pub const FilePos = struct {
         // Get Zig stat (inode & size)
         const st = try file.stat();
 
-        // Get dev_id via C stat
-        var st_c: c.struct_stat = undefined;
-        if (c.stat(@ptrCast(path_copy.ptr), &st_c) != 0) {
-            return error.StatFailed;
-        }
+        const inode: INODE = try getFileInode(path);
+        const dev_id: DEV = try getDeviceID(path_copy);
 
         // Seek to end
         try file.seekTo(st.size);
 
         return .{
-            .inode = st.inode,
-            .dev_id = st_c.st_dev, 
+            .inode = inode,
+            .dev_id = dev_id, 
             .last_pos = st.size,
             .curr_pos = st.size,
             .file = file,
@@ -59,6 +61,21 @@ pub const FilePos = struct {
     fn deinit(self: *FilePos, allocator: std.mem.Allocator) void {
         self.file.close();
         allocator.free(self.file_path);
+    }
+
+    // Get file inode
+    fn getFileInode(path: []const u8 ) !INODE {
+        const st = try std.fs.cwd().statFile(path);
+        return st.size;
+    }
+
+    // Get dev_id via C stat
+    fn getDeviceID(path: []u8) !DEV {
+        var st_c: c.struct_stat = undefined;
+        if (c.stat(@ptrCast(path.ptr), &st_c) != 0) {
+            return error.StatFailed;
+        }
+        return st_c.st_dev;
     }
 
     /// Query the current file size. Useful to detect if more data
@@ -101,14 +118,14 @@ pub const FilePos = struct {
 };
 
 /// Tracks multiple FilePos instances.
-/// fp_maps stores the (inode + dev_id) → FilePos instance.
+/// fp_maps stores the UID(inode + dev_id) → FilePos instance.
 /// has a stable identity even if the path changes or is opened
 /// through different symlink locations.
 ///
 /// FileTracker owns all FilePos objects stored inside it.
 pub const FileTracker = struct {
     allocator: std.mem.Allocator,
-    fp_map: std.AutoHashMap(u128, FilePos),
+    fp_map: std.AutoHashMap(UID, FilePos),
 
     /// Create an empty tracker. Caller must call `deinit`
     /// to close all tracked files and free paths.
