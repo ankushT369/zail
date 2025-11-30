@@ -1,6 +1,9 @@
 const std = @import("std");
 const ct = @import("constants.zig");
+const util = @import("util.zig");
+
 const linux = std.os.linux;
+const fs = std.fs;
 
 // Size of temporary buffer used to read inotify events.
 pub const inotify_buffer_size = 10 * (@sizeOf(linux.inotify_event) + 256 + 1);
@@ -77,7 +80,7 @@ pub const Watcher = struct {
     /// Errors while scanning a particular directory entry are ignored,
     /// allowing traversal to continue.
     fn addWatchRecurrsive(self: *Watcher, path: []const u8) !void {
-        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch return;
+        var dir = fs.cwd().openDir(path, .{ .iterate = true }) catch return;
         defer dir.close();
 
         var buf: [MAX_PATH_LEN]u8 = undefined;
@@ -85,9 +88,9 @@ pub const Watcher = struct {
         var iter = dir.iterate();
         while (iter.next() catch null) |entry| {
             if (entry.kind == .directory and is_equal(entry.name)) {
-                const next_path = std.fmt.bufPrintZ(&buf, "{s}/{s}", .{path, entry.name}) catch continue;
+                const next_path = util.formatPath(&buf, path, entry.name) catch continue;
 
-                const ret = linux.inotify_add_watch(self.inotify_fd, next_path, ct.MASK);
+                const ret = linux.inotify_add_watch(self.inotify_fd, next_path.ptr, ct.MASK);
                 if (ret >= std.math.maxInt(i32)) continue;
 
                 const wd: i32 = @intCast(ret);
