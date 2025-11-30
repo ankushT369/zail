@@ -2,6 +2,8 @@ const std = @import("std");
 const ct = @import("constants.zig");
 const tp = @import("types.zig");
 
+const fs = std.fs;
+
 const INODE = tp.INODE;
 const DEV = tp.DEV;
 const UID = tp.UID;
@@ -22,7 +24,7 @@ pub const FilePos = struct {
     last_pos: u64,
     // current size
     curr_pos: u64,
-    file: std.fs.File,
+    file: fs.File,
     file_path: []const u8,
 
     /// Initialize tracking for a single file.
@@ -35,7 +37,7 @@ pub const FilePos = struct {
         const path_copy = try allocator.dupe(u8, path);
 
         // Open file
-        const file = try std.fs.cwd().openFile(path, .{});
+        const file = try fs.cwd().openFile(path, .{});
 
         // Get Zig stat (inode & size)
         const st = try file.stat();
@@ -65,7 +67,7 @@ pub const FilePos = struct {
 
     // Get file inode
     fn getFileInode(path: []const u8 ) !INODE {
-        const st = try std.fs.cwd().statFile(path);
+        const st = try fs.cwd().statFile(path);
         return st.size;
     }
 
@@ -81,7 +83,7 @@ pub const FilePos = struct {
     /// Query the current file size. Useful to detect if more data
     /// has been appended since last read.
     fn getFileCurrPos(self: *FilePos) !u64 {
-        const st = try std.fs.cwd().statFile(self.file_path);
+        const st = try fs.cwd().statFile(self.file_path);
         return st.size;
     }
 
@@ -162,7 +164,7 @@ pub const FileTracker = struct {
     /// Returns a stable pointer that remains valid until `deinit`.
     pub fn track(self: *FileTracker, path: []const u8) !*FilePos {
         // Stat first to get inode/dev before doing anything expensive
-        const st = try std.fs.cwd().statFile(path);
+        const st = try fs.cwd().statFile(path);
 
         var st_c: c.struct_stat = undefined;
         if (c.stat(@ptrCast(path.ptr), &st_c) != 0) {
