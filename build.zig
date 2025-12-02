@@ -84,6 +84,7 @@ pub fn build(b: *std.Build) void {
     });
 
     // Imported libc required for C library
+    exe.linkSystemLibrary("libsystemd");
     exe.linkLibC();
 
     // This declares intent for the executable to be installed into the
@@ -134,6 +135,9 @@ pub fn build(b: *std.Build) void {
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
+
+    exe_tests.linkSystemLibrary("libsystemd");
+    exe_tests.linkLibC();
 
     // A run step that will run the second test executable.
     const run_exe_tests = b.addRunArtifact(exe_tests);

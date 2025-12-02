@@ -1,18 +1,19 @@
 const std = @import("std");
 const ct = @import("constants.zig");
 const util = @import("util.zig");
+const pat = @import("pattern.zig");
 
 const linux = std.os.linux;
 const fs = std.fs;
 
 // Size of temporary buffer used to read inotify events.
-pub const inotify_buffer_size = 10 * (@sizeOf(linux.inotify_event) + 256 + 1);
+pub const inotifylen = 10 * (@sizeOf(linux.inotify_event) + 256 + 1);
 
 // Max temp path size used when joining directory names during recursion.
 pub const MAX_PATH_LEN = 1024;
 
 // Inotify buffer used for reading events from the inotify fd.
-pub var inotify_buffer: [inotify_buffer_size]u8 align(8) = undefined;
+pub var inotifybuf: [inotifylen]u8 align(8) = undefined;
 
 /// Basic wrapper around an inotify instance. 
 /// Keeps track of watch descriptors and the paths they correspond to.
@@ -89,6 +90,8 @@ pub const Watcher = struct {
         while (iter.next() catch null) |entry| {
             if (entry.kind == .directory and is_equal(entry.name)) {
                 const next_path = util.formatPath(&buf, path, entry.name) catch continue;
+
+                if (pat.checkExcludedPath(next_path)) continue;
 
                 const ret = linux.inotify_add_watch(self.inotify_fd, next_path.ptr, ct.MASK);
                 if (ret >= std.math.maxInt(i32)) continue;
